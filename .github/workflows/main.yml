@@ -33,4 +33,3 @@ jobs:
           remote_host: ec2-44-214-73-219.compute-1.amazonaws.com
           remote_user: ubuntu
           remote_key: "${{ secrets.SSH_PRIVATE_KEY }}"
-      - run: ./start-app
