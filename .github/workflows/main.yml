@@ -1,74 +1,37 @@
-name: production
+name: CI
 
 on:
   push:
-    branches:
-      - main
+    branches: [ release ]
   pull_request:
-    branches:
-      - main
+    branches: [ release ]
+
+  workflow_dispatch:
 
 jobs:
-  ci:
-    runs-on: ${{ matrix.os }}
+  build:
+
+    runs-on: ubuntu-latest
+
+    if: github.ref == 'refs/heads/release'
 
     strategy:
       matrix:
-        os: [ubuntu-latest]
-        node: [16]
-    env:
-      NODE_ENV: "development"
-
+        node-version: [18.x]
 
     steps:
-      - name: Checkout 🛎
-        uses: actions/checkout@master
+      - uses: actions/checkout@v2
 
-      - name: Setup node env 🏗
-        uses: actions/setup-node@v2.1.2
+      - run: npm ci
+      - run: npm run build
+      - run: npm run test
+
+      - name: rsync deployments
+        uses: burnett01/rsync-deployments@5.1
         with:
-          node-version: ${{ matrix.node }}
-
-      - name: Cache node_modules 📦
-        uses: actions/cache@v2
-        with:
-          path: ~/.npm
-          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-node-
-
-      - name: Installing NPM
-        run: npm install
-
-      # - name: Building application
-      #   run: npm run build
-
-      - name: Generate deployment package
-        run: zip -r deploy.zip * .[^.]* -x "**node_modules**"
-
-      - name: Get timestamp
-        uses: gerred/actions/current-time@master
-        id: current-time
-
-      - name: Run string replace
-        uses: frabert/replace-string-action@master
-        id: format-time
-        with:
-          pattern: '[:\.]+'
-          string: "${{ steps.current-time.outputs.time }}"
-          replace-with: '-'
-          flags: 'g'
-
-      - name: Beanstalk Deploy for app
-        uses: einaregilsson/beanstalk-deploy@v16
-        with:
-          aws_access_key: ${{secrets.AWS_ACCESS_KEY}}
-          aws_secret_key: ${{secrets.AWS_SECRET_KEY}}
-          application_name: Node.js Demo
-          environment_name: Nodejsdemo-env
-          region: us-east-1
-          version_label: "my-node-app-${{ steps.format-time.outputs.replaced }}"
-          deployment_package: deploy.zip
-
-      - name: Deployed!
-        run: echo App deployed to ELB
+          switches: -avzr --delete
+          path: ./*
+          remote_path: /var/www/my-app/
+          remote_host: ec2-44-214-73-219.compute-1.amazonaws.com
+          remote_user: ubuntu
+          remote_key: "${{ secrets.SSH_PRIVATE_KEY }}"
